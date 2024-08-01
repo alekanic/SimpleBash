@@ -1,0 +1,115 @@
+#include "s21_grep.h"
+
+void grep_finder(int argc, char *argv[], int optind, struct flags *flag) {
+  char *pattern = NULL;
+  char *file_string = NULL;
+  int rc, head, file_index = optind + 1;
+  size_t len = 0;
+  ssize_t read;
+  size_t nmatch = 2;
+  regex_t preg;
+  regmatch_t pmatch[2];
+  int count_n = 1;
+  if (flag->e == 1) file_index = optind;
+  if (file_index < argc) head = 1;
+
+  FILE *f;
+  while (file_index < argc) {
+    f = fopen(argv[file_index], "r");
+    if (f) {
+      if (flag->e == 1)
+        pattern = flag->arg_c;
+      else {
+        pattern = argv[optind];
+      }
+      if ((rc = regcomp(&preg, pattern, REG_EXTENDED) != 0)) {
+        printf("regcomp() failed, returning nonzero (%d)", rc);
+        exit(1);
+      }
+      if (flag->i == 1) rc = regcomp(&preg, pattern, REG_ICASE | REG_EXTENDED);
+
+      while ((read = getline(&file_string, &len, f) != -1)) {
+        if ((rc = regexec(&preg, file_string, nmatch, pmatch, 0)) == 0) {
+          if (flag->l == 1) {
+            printf("%s\n",
+                   argv[file_index]);  // work whith only one file. Need apgrade
+            break;
+          }
+          if (flag->c != 1 && flag->v != 1) {
+            if (flag->n) {
+              printf("%d:", count_n);
+            }
+            if (head == 1) printf("%s:", argv[file_index]);
+            printf("%s", file_string);
+          } else {
+            flag->countc++;
+          }
+        } else if (flag->v == 1) {
+          printf("%s", file_string);
+        }
+        count_n++;
+      }
+
+      if (flag->c == 1) printf("%d\n", flag->countc);
+    }
+    fclose(f);
+    // printf("%d\n", file_index);
+    // printf("%s\n", argv[file_index]);
+    file_index++;
+  }
+  free(file_string);
+  regfree(&preg);
+}
+
+void grep(int argc, char *argv[], struct flags *flag) {
+  const char *short_options = "ce:if:hlnosv";
+  int result;
+  while ((result = getopt_long(argc, argv, short_options, 0, 0)) != -1) {
+    switch (result) {
+      case 'c':
+        flag->c = 1;
+        flag->countc = 0;
+        break;
+      case 'i':
+        flag->i = 1;
+        break;
+      case 'v':
+        flag->v = 1;
+        break;
+      case 'l':
+        flag->l = 1;
+        break;
+      case 'n':
+        flag->n = 1;
+        break;
+      case 'h':
+        flag->h = 1;
+        break;
+      case 's':
+        flag->s = 1;
+        break;
+      case 'f':
+        flag->f = 1;
+        break;
+      case 'o':
+        flag->o = 1;
+        break;
+      case 'e':
+        if (optarg != NULL) {
+          flag->e = 1;
+          printf("%s\n", flag->arg_c);
+          if (flag->arg_c[0] != '\0') strcat(flag->arg_c, "|");
+          strcat(flag->arg_c, optarg);
+          printf("%s\n", flag->arg_c);
+        }
+        break;
+    }
+  }
+  grep_finder(argc, argv, optind, flag);
+}
+
+int main(int argc, char *argv[]) {
+  struct flags flag;
+  grep(argc, argv, &flag);
+  return 0;
+}
